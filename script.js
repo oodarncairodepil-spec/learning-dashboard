@@ -553,7 +553,7 @@ class LearningDashboard {
             }
         });
         
-        cardForm.addEventListener('submit', (e) => {
+        cardForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(cardForm);
             const title = formData.get('title');
@@ -568,17 +568,41 @@ class LearningDashboard {
             
             if (editingCardId) {
                 // Edit existing card
-                const card = this.cards.find(c => c.id === editingCardId);
-                if (card) {
-                    card.title = title;
-                    card.description = description;
-                    card.category = category;
-                    card.columnId = columnId;
-                    card.durationHours = parseInt(durationHours) || 0;
-                    card.durationMinutes = parseInt(durationMinutes) || 0;
-                    card.assignedDate = assignedDate ? new Date(assignedDate).toISOString() : card.assignedDate;
-                    this.saveData();
-                    this.renderDashboard();
+                try {
+                    // Find category ID
+                    const existingCategory = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+                    const categoryId = existingCategory ? existingCategory.id : null;
+                    
+                    const totalDuration = (parseInt(durationHours) || 0) * 60 + (parseInt(durationMinutes) || 0);
+                    
+                    const updateData = {
+                        title,
+                        description,
+                        category_id: categoryId,
+                        column_id: columnId,
+                        duration: totalDuration,
+                        date_created: assignedDate || null
+                    };
+                    
+                    await supabaseService.updateCard(editingCardId, updateData);
+                    
+                    // Update local card data
+                    const card = this.cards.find(c => c.id === editingCardId);
+                    if (card) {
+                        card.title = title;
+                        card.description = description;
+                        card.category = category;
+                        card.columnId = columnId;
+                        card.durationHours = parseInt(durationHours) || 0;
+                        card.durationMinutes = parseInt(durationMinutes) || 0;
+                        card.assignedDate = assignedDate ? new Date(assignedDate).toISOString() : card.assignedDate;
+                    }
+                    
+                    await this.renderDashboard();
+                } catch (error) {
+                    console.error('Error updating card:', error);
+                    alert('Failed to update card. Please try again.');
+                    return;
                 }
             } else {
                 // Add new card
