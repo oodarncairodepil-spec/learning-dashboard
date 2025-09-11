@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Progress Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="supabase-service.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1><i class="fas fa-graduation-cap"></i> Learning Progress Dashboard</h1>
+            <div class="header-actions">
+                <button id="add-column-btn" class="btn btn-secondary">
+                    <i class="fas fa-plus"></i> Add Column
+                </button>
+                <button id="add-card-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add Card
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard">
+        <div id="columns-container" class="columns-container">
+            <!-- Default columns will be created by JavaScript -->
+        </div>
+    </main>
+
+    <!-- Add Card Modal -->
+    <div id="card-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="card-modal-title">Add New Learning Card</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="card-form">
+                    <div class="form-group">
+                        <label for="card-title">Title:</label>
+                        <input type="text" id="card-title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="card-category">Category:</label>
+                        <select id="card-category" name="category" required>
+                            <option value="art">Art</option>
+                            <option value="music">Music</option>
+                            <option value="programming" selected>Programming</option>
+                            <option value="foreign-language">Foreign Language</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="card-description">Description:</label>
+                        <textarea id="card-description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="card-duration">Duration:</label>
+                        <div class="duration-inputs">
+                            <input type="number" id="cardDurationHours" name="durationHours" min="0" max="23" placeholder="0" value="0">
+                            <span class="duration-label">Hours</span>
+                            <input type="number" id="cardDurationMinutes" name="durationMinutes" min="0" max="59" placeholder="0" value="0">
+                            <span class="duration-label">Minutes</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary" id="add-new-category-btn">Add New Category</button>
+                    </div>
+                    <div class="form-group" id="newCategoryGroup" style="display: none;">
+                        <label for="newCategoryName">New Category Name:</label>
+                        <input type="text" id="newCategoryName" name="newCategoryName" placeholder="Enter new category name">
+                    </div>
+                    <div class="form-group">
+                        <label for="cardAssignedDate">Assigned Date:</label>
+                        <div class="date-input-container">
+                            <input type="date" id="cardAssignedDate" name="assignedDate" required>
+                            <span class="date-display" id="dateDisplay"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="card-column">Add to Column:</label>
+                        <select id="card-column" name="column">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-danger" id="delete-card" style="display: none;">Delete Card</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-card">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="submit-card">Add Card</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Column Modal -->
+    <div id="column-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Column</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="column-form">
+                    <div class="form-group">
+                        <label for="column-name">Column Name:</label>
+                        <input type="text" id="column-name" name="name" required placeholder="e.g., To Review, Completed">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-column">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Column</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timer Display -->
+    <div id="timer-display" class="timer-display hidden">
+        <div class="timer-content">
+            <div class="timer-info">
+                <h4 id="timer-card-title">Card Title</h4>
+                <div class="timer-time" id="timer-time">00:00:00</div>
+            </div>
+            <div class="timer-controls">
+                <button id="pause-timer" class="btn btn-warning">
+                    <i class="fas fa-pause"></i>
+                </button>
+                <button id="stop-timer" class="btn btn-danger">
+                    <i class="fas fa-stop"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
