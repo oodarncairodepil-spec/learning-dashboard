@@ -149,31 +149,9 @@ class LearningDashboard {
     // Card Management
     async addCard(title, description, category, columnId, durationHours = 0, durationMinutes = 0, assignedDate = null) {
         try {
-            let categoryId = null;
-            
-            // Handle new category creation
-            if (category === 'add-new') {
-                const newCategoryName = document.getElementById('newCategoryName').value.trim();
-                if (newCategoryName) {
-                    try {
-                        const newCategory = await supabaseService.createCategory(newCategoryName);
-                        this.categories.push(newCategory);
-                        categoryId = newCategory.id;
-                        category = newCategory.name;
-                    } catch (error) {
-                        console.error('Error creating category:', error);
-                        category = 'Programming'; // fallback
-                    }
-                } else {
-                    category = 'Programming'; // fallback
-                }
-            }
-            
-            // Find category ID if not creating new
-            if (!categoryId) {
-                const existingCategory = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
-                categoryId = existingCategory ? existingCategory.id : null;
-            }
+            // Find category ID
+            const existingCategory = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+            const categoryId = existingCategory ? existingCategory.id : null;
             
             const totalDuration = (parseInt(durationHours) || 0) * 60 + (parseInt(durationMinutes) || 0);
             
@@ -414,17 +392,21 @@ class LearningDashboard {
     
     async reorderColumns(draggedColumnId, targetColumnId) {
         try {
-            const draggedColumn = this.columns.find(col => col.id === draggedColumnId);
-            const targetColumn = this.columns.find(col => col.id === targetColumnId);
+            const draggedIndex = this.columns.findIndex(col => col.id === draggedColumnId);
+            const targetIndex = this.columns.findIndex(col => col.id === targetColumnId);
             
-            if (!draggedColumn || !targetColumn) return;
+            if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
             
-            const draggedOrder = draggedColumn.order;
-            const targetOrder = targetColumn.order;
+            // Remove the dragged column from its current position
+            const [draggedColumn] = this.columns.splice(draggedIndex, 1);
             
-            // Swap orders
-            draggedColumn.order = targetOrder;
-            targetColumn.order = draggedOrder;
+            // Insert it at the target position
+            this.columns.splice(targetIndex, 0, draggedColumn);
+            
+            // Update all column orders based on their new positions
+            this.columns.forEach((column, index) => {
+                column.order = index;
+            });
             
             // Update in Supabase
             await supabaseService.reorderColumns(this.columns);
@@ -433,6 +415,8 @@ class LearningDashboard {
         } catch (error) {
             console.error('Error reordering columns:', error);
             alert('Failed to reorder columns. Please try again.');
+            // Reload data to restore original order
+            await this.loadData();
         }
     }
 
@@ -535,23 +519,7 @@ class LearningDashboard {
             cardModal.classList.add('show');
         });
         
-        // Add New Category button handler
-        const addNewCategoryBtn = document.getElementById('add-new-category-btn');
-        if (addNewCategoryBtn) {
-            addNewCategoryBtn.addEventListener('click', () => {
-                const newCategoryGroup = document.getElementById('newCategoryGroup');
-                const newCategoryInput = document.getElementById('newCategoryName');
-                
-                if (newCategoryGroup) {
-                    newCategoryGroup.style.display = 'block';
-                    addNewCategoryBtn.style.display = 'none';
-                }
-                if (newCategoryInput) {
-                    newCategoryInput.required = true;
-                    newCategoryInput.focus();
-                }
-            });
-        }
+
 
         // Date display handler
         const dateInput = document.getElementById('cardAssignedDate');
@@ -574,17 +542,6 @@ class LearningDashboard {
             cardModal.classList.remove('show');
             cardForm.reset();
             editingCardId = null;
-            // Reset new category UI
-            const newCategoryGroupElement = document.getElementById('newCategoryGroup');
-            const addNewCategoryBtn = document.getElementById('add-new-category-btn');
-            const newCategoryInput = document.getElementById('newCategoryName');
-            
-            if (newCategoryGroupElement) newCategoryGroupElement.style.display = 'none';
-            if (addNewCategoryBtn) addNewCategoryBtn.style.display = 'block';
-            if (newCategoryInput) {
-                newCategoryInput.value = '';
-                newCategoryInput.required = false;
-            }
         });
         
         deleteCardBtn.addEventListener('click', () => {
@@ -607,33 +564,7 @@ class LearningDashboard {
             const durationMinutes = formData.get('durationMinutes') || 0;
             const assignedDate = formData.get('assignedDate');
             
-            // Handle new category creation
-            let finalCategory = category;
-            const newCategoryGroup = document.getElementById('newCategoryGroup');
-            const newCategoryInput = document.getElementById('newCategoryName');
-            
-            if (newCategoryGroup && newCategoryGroup.style.display !== 'none' && newCategoryInput && newCategoryInput.value.trim()) {
-                const newCategoryName = newCategoryInput.value.trim();
-                finalCategory = newCategoryName.toLowerCase().replace(/\s+/g, '-');
-                
-                // Add to custom categories
-                this.customCategories.push({
-                    value: finalCategory,
-                    label: newCategoryName
-                });
-                
-                // Update localStorage
-                localStorage.setItem('customCategories', JSON.stringify(this.customCategories));
-                
-                // Update category options
-                this.updateCategoryOptions();
-                
-                // Set the new category as selected
-                const categorySelect = document.getElementById('card-category');
-                if (categorySelect) {
-                    categorySelect.value = finalCategory;
-                }
-            }
+
             
             if (editingCardId) {
                 // Edit existing card
@@ -665,10 +596,6 @@ class LearningDashboard {
             cardModal.classList.remove('show');
             cardForm.reset();
             editingCardId = null;
-            const newCategoryGroupElement = document.getElementById('newCategoryGroup');
-             if (newCategoryGroupElement) {
-                 newCategoryGroupElement.style.display = 'none';
-             }
         });
         
         // Store editingCardId for access in other methods
@@ -753,12 +680,6 @@ class LearningDashboard {
             option.textContent = category.name;
             select.appendChild(option);
         });
-        
-        // Add "Add New Category" option
-        const addNewOption = document.createElement('option');
-        addNewOption.value = 'add-new';
-        addNewOption.textContent = '+ Add New Category';
-        select.appendChild(addNewOption);
         
         // Restore previous value if it still exists
         if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
@@ -903,17 +824,7 @@ class LearningDashboard {
         this.updateCardColumnOptions();
         document.getElementById('card-column').value = card.columnId;
         
-        // Reset new category UI when editing
-        const newCategoryGroup = document.getElementById('newCategoryGroup');
-        const addNewCategoryBtn = document.getElementById('add-new-category-btn');
-        const newCategoryInput = document.getElementById('newCategoryName');
-        
-        if (newCategoryGroup) newCategoryGroup.style.display = 'none';
-        if (addNewCategoryBtn) addNewCategoryBtn.style.display = 'block';
-        if (newCategoryInput) {
-            newCategoryInput.value = '';
-            newCategoryInput.required = false;
-        }
+
         
         cardModal.classList.add('show');
     }
