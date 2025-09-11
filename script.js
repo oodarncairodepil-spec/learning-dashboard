@@ -8,6 +8,8 @@ class LearningDashboard {
         this.timerInterval = null;
         this.draggedCard = null;
         this.isLoading = false;
+        this.columnFilters = {}; // Store filters for each column
+        this.currentFilterColumnId = null;
         
         this.init();
     }
@@ -43,17 +45,25 @@ class LearningDashboard {
                 order: col.position
             }));
             
-            this.cards = cards.map(card => ({
-                id: card.id,
-                title: card.title,
-                description: card.description,
-                category: card.categories?.name || 'uncategorized',
-                columnId: card.column_id,
-                duration: card.duration || 0,
-                assignedDate: card.date_created,
-                timerStart: null,
-                elapsedTime: 0
-            }));
+            this.cards = cards.map(card => {
+                const totalMinutes = card.duration || 0;
+                const durationHours = Math.floor(totalMinutes / 60);
+                const durationMinutes = totalMinutes % 60;
+                
+                return {
+                    id: card.id,
+                    title: card.title,
+                    description: card.description,
+                    category: card.categories?.name || 'uncategorized',
+                    columnId: card.column_id,
+                    duration: totalMinutes,
+                    durationHours: durationHours,
+                    durationMinutes: durationMinutes,
+                    assignedDate: card.date_created,
+                    timerStart: null,
+                    elapsedTime: 0
+                };
+            });
             
             this.categories = categories;
             
@@ -110,6 +120,72 @@ class LearningDashboard {
             console.error('Error adding column:', error);
             alert('Failed to add column. Please try again.');
         }
+    }
+    
+    // Category Management
+    async addCategory(name, color = '#3498db') {
+        try {
+            const newCategory = await supabaseService.createCategory(name, color);
+            this.categories.push(newCategory);
+            this.updateCategoryOptions();
+            this.updateCategoryList();
+        } catch (error) {
+            console.error('Error adding category:', error);
+            alert('Failed to add category. Please try again.');
+        }
+    }
+    
+    async updateCategory(id, name, color) {
+        try {
+            const updatedCategory = await supabaseService.updateCategory(id, { name, color });
+            const categoryIndex = this.categories.findIndex(cat => cat.id === id);
+            if (categoryIndex !== -1) {
+                this.categories[categoryIndex] = updatedCategory;
+            }
+            this.updateCategoryOptions();
+            this.updateCategoryList();
+            await this.renderDashboard();
+        } catch (error) {
+            console.error('Error updating category:', error);
+            alert('Failed to update category. Please try again.');
+        }
+    }
+    
+    async deleteCategory(id) {
+        try {
+            await supabaseService.deleteCategory(id);
+            this.categories = this.categories.filter(cat => cat.id !== id);
+            this.updateCategoryOptions();
+            this.updateCategoryList();
+            await this.renderDashboard();
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            alert('Failed to delete category. Please try again.');
+        }
+    }
+    
+    editCategory(categoryId) {
+        const category = this.categories.find(cat => cat.id === categoryId);
+        if (!category) return;
+        
+        const categoryModal = document.getElementById('category-modal');
+        const categoryModalTitle = document.getElementById('category-modal-title');
+        const submitCategoryBtn = document.getElementById('submit-category');
+        const deleteCategoryBtn = document.getElementById('delete-category');
+        
+        // Set form values
+        document.getElementById('category-name').value = category.name;
+        document.getElementById('category-color').value = category.color;
+        
+        // Update modal state
+        categoryModalTitle.textContent = 'Edit Category';
+        submitCategoryBtn.textContent = 'Update Category';
+        deleteCategoryBtn.style.display = 'inline-block';
+        
+        // Set editing state
+        this.setEditingCategoryId(category.id);
+        
+        categoryModal.classList.add('show');
     }
 
     async deleteColumn(columnId) {
@@ -168,13 +244,16 @@ class LearningDashboard {
             const newCard = await supabaseService.createCard(cardData);
             
             // Add to local state
+            const totalDurationMinutes = newCard.duration || 0;
             this.cards.push({
                 id: newCard.id,
                 title: newCard.title,
                 description: newCard.description,
                 category: newCard.categories?.name || 'uncategorized',
                 columnId: newCard.column_id,
-                duration: newCard.duration || 0,
+                duration: totalDurationMinutes,
+                durationHours: Math.floor(totalDurationMinutes / 60),
+                durationMinutes: totalDurationMinutes % 60,
                 assignedDate: newCard.date_created,
                 timerStart: null,
                 elapsedTime: 0
@@ -209,6 +288,15 @@ class LearningDashboard {
             
             const oldColumnId = card.columnId;
             const newPosition = this.cards.filter(c => c.columnId === newColumnId).length;
+            
+            // Check if moving to completed column (Done)
+            const newColumn = this.columns.find(col => col.id === newColumnId);
+            const isMovingToCompleted = newColumn && (newColumn.name === 'Done' || newColumn.name === 'Completed');
+            
+            // Set completion date if moving to completed column
+            if (isMovingToCompleted && !card.completedAt) {
+                card.completedAt = new Date().toISOString();
+            }
             
             await supabaseService.moveCard(cardId, newColumnId, newPosition);
             card.columnId = newColumnId;
@@ -485,6 +573,87 @@ class LearningDashboard {
         });
     }
 
+    // Filter functionality
+    openColumnFilter(columnId) {
+        this.currentFilterColumnId = columnId;
+        const modal = document.getElementById('filter-modal');
+        const column = this.columns.find(col => col.id === columnId);
+        
+        // Update modal title
+        document.getElementById('filter-modal-title').textContent = `Filter Categories - ${column.name}`;
+        
+        // Populate filter categories
+        this.populateFilterCategories();
+        
+        modal.classList.add('show');
+    }
+
+    populateFilterCategories() {
+        const container = document.getElementById('filter-categories');
+        container.innerHTML = '';
+        
+        // Get current column's active filters
+        const activeFilters = this.columnFilters[this.currentFilterColumnId] || [];
+        
+        // Get current column's cards to count categories
+        const currentColumn = this.columns.find(col => col.id === this.currentFilterColumnId);
+        const columnCards = this.cards.filter(card => card.columnId === this.currentFilterColumnId);
+        
+        this.categories.forEach(category => {
+            const isChecked = activeFilters.length === 0 || activeFilters.includes(category.name.toLowerCase());
+            
+            // Count cards in this category for the current column
+            const categoryCardCount = columnCards.filter(card => 
+                card.category && card.category.toLowerCase() === category.name.toLowerCase()
+            ).length;
+            
+            const categoryItem = document.createElement('div');
+            categoryItem.className = 'filter-category-item';
+            categoryItem.innerHTML = `
+                <input type="checkbox" id="filter-${category.id}" value="${category.name.toLowerCase()}" ${isChecked ? 'checked' : ''}>
+                <label for="filter-${category.id}">
+                    ${category.name} <span class="category-count">(${categoryCardCount})</span>
+                </label>
+            `;
+            
+            container.appendChild(categoryItem);
+        });
+    }
+
+    applyColumnFilter() {
+        const checkboxes = document.querySelectorAll('#filter-categories input[type="checkbox"]');
+        const selectedCategories = Array.from(checkboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        // Store filter for this column
+        if (selectedCategories.length === this.categories.length) {
+            // All categories selected = no filter
+            delete this.columnFilters[this.currentFilterColumnId];
+        } else {
+            this.columnFilters[this.currentFilterColumnId] = selectedCategories;
+        }
+        
+        // Re-render the dashboard to apply filters
+        this.renderDashboard();
+        
+        // Close modal
+        document.getElementById('filter-modal').classList.remove('show');
+    }
+
+    clearColumnFilter() {
+        delete this.columnFilters[this.currentFilterColumnId];
+        this.renderDashboard();
+        document.getElementById('filter-modal').classList.remove('show');
+    }
+
+    unselectAllCategories() {
+        const checkboxes = document.querySelectorAll('#filter-categories input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+
     // Event Listeners
     setupEventListeners() {
         // Add Card Modal
@@ -545,11 +714,17 @@ class LearningDashboard {
         });
         
         deleteCardBtn.addEventListener('click', () => {
-            if (editingCardId && confirm('Are you sure you want to delete this card?')) {
-                this.deleteCard(editingCardId);
-                cardModal.classList.remove('show');
-                cardForm.reset();
-                editingCardId = null;
+            if (editingCardId) {
+                this.showConfirmation(
+                    'Delete Card',
+                    'Are you sure you want to delete this card? This action cannot be undone.',
+                    () => {
+                        this.deleteCard(editingCardId);
+                        cardModal.classList.remove('show');
+                        cardForm.reset();
+                        editingCardId = null;
+                    }
+                );
             }
         });
         
@@ -593,6 +768,7 @@ class LearningDashboard {
                         card.description = description;
                         card.category = category;
                         card.columnId = columnId;
+                        card.duration = totalDuration;
                         card.durationHours = parseInt(durationHours) || 0;
                         card.durationMinutes = parseInt(durationMinutes) || 0;
                         card.assignedDate = assignedDate ? new Date(assignedDate).toISOString() : card.assignedDate;
@@ -650,6 +826,66 @@ class LearningDashboard {
             columnForm.reset();
         });
         
+        // Add Category Modal
+        const addCategoryBtn = document.getElementById('add-category-btn');
+        const categoryModal = document.getElementById('category-modal');
+        const categoryForm = document.getElementById('category-form');
+        const cancelCategoryBtn = document.getElementById('cancel-category');
+        const deleteCategoryBtn = document.getElementById('delete-category');
+        const submitCategoryBtn = document.getElementById('submit-category');
+        const categoryModalTitle = document.getElementById('category-modal-title');
+        
+        let editingCategoryId = null;
+        
+        addCategoryBtn.addEventListener('click', () => {
+            editingCategoryId = null;
+            categoryModalTitle.textContent = 'Add New Category';
+            submitCategoryBtn.textContent = 'Add Category';
+            deleteCategoryBtn.style.display = 'none';
+            categoryForm.reset();
+            document.getElementById('category-color').value = '#3498db';
+            this.updateCategoryList();
+            categoryModal.classList.add('show');
+        });
+        
+        cancelCategoryBtn.addEventListener('click', () => {
+            categoryModal.classList.remove('show');
+            categoryForm.reset();
+            editingCategoryId = null;
+        });
+        
+        deleteCategoryBtn.addEventListener('click', async () => {
+            if (editingCategoryId && confirm('Are you sure you want to delete this category? Cards using this category will have their category removed.')) {
+                await this.deleteCategory(editingCategoryId);
+                categoryModal.classList.remove('show');
+                categoryForm.reset();
+                editingCategoryId = null;
+            }
+        });
+        
+        categoryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(categoryForm);
+            const name = formData.get('name');
+            const color = formData.get('color');
+            
+            if (editingCategoryId) {
+                // Edit existing category
+                await this.updateCategory(editingCategoryId, name, color);
+            } else {
+                // Add new category
+                await this.addCategory(name, color);
+            }
+            
+            categoryModal.classList.remove('show');
+            categoryForm.reset();
+            editingCategoryId = null;
+        });
+        
+        // Store editingCategoryId for access in other methods
+        this.setEditingCategoryId = (id) => { editingCategoryId = id; };
+        this.getEditingCategoryId = () => editingCategoryId;
+        
         // Timer Controls
         const pauseTimerBtn = document.getElementById('pause-timer');
         const stopTimerBtn = document.getElementById('stop-timer');
@@ -663,6 +899,37 @@ class LearningDashboard {
         stopTimerBtn.addEventListener('click', () => {
             this.stopTimer();
         });
+        
+        // Filter Modal
+        const filterModal = document.getElementById('filter-modal');
+        const applyFilterBtn = document.getElementById('apply-filter');
+        const clearFilterBtn = document.getElementById('clear-filter');
+        const unselectAllBtn = document.getElementById('unselect-all-filter');
+        const cancelFilterBtn = document.getElementById('cancel-filter');
+        
+        if (applyFilterBtn) {
+            applyFilterBtn.addEventListener('click', () => {
+                this.applyColumnFilter();
+            });
+        }
+        
+        if (clearFilterBtn) {
+            clearFilterBtn.addEventListener('click', () => {
+                this.clearColumnFilter();
+            });
+        }
+        
+        if (unselectAllBtn) {
+            unselectAllBtn.addEventListener('click', () => {
+                this.unselectAllCategories();
+            });
+        }
+        
+        if (cancelFilterBtn) {
+            cancelFilterBtn.addEventListener('click', () => {
+                filterModal.classList.remove('show');
+            });
+        }
         
         // Close modals when clicking outside
         document.addEventListener('click', (e) => {
@@ -710,6 +977,41 @@ class LearningDashboard {
             select.value = currentValue;
         }
     }
+    
+    updateCategoryList() {
+        const categoryList = document.getElementById('category-list');
+        if (!categoryList) return;
+        
+        categoryList.innerHTML = '';
+        
+        this.categories.forEach(category => {
+            const categoryItem = document.createElement('div');
+            categoryItem.className = 'category-item';
+            categoryItem.style.backgroundColor = category.color;
+            categoryItem.style.color = this.getContrastColor(category.color);
+            categoryItem.onclick = () => this.editCategory(category.id);
+            
+            categoryItem.innerHTML = `
+                <div class="category-color" style="background-color: ${category.color}"></div>
+                <span>${category.name}</span>
+            `;
+            
+            categoryList.appendChild(categoryItem);
+        });
+    }
+    
+    // Helper function to determine text color based on background
+    getContrastColor(hexColor) {
+        // Convert hex to RGB
+        const r = parseInt(hexColor.substr(1, 2), 16);
+        const g = parseInt(hexColor.substr(3, 2), 16);
+        const b = parseInt(hexColor.substr(5, 2), 16);
+        
+        // Calculate luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        return luminance > 0.5 ? '#000000' : '#ffffff';
+    }
 
     // Rendering
     async renderDashboard() {
@@ -728,7 +1030,26 @@ class LearningDashboard {
     }
 
     createColumnElement(column) {
-        const columnCards = this.cards.filter(card => card.columnId === column.id);
+        let columnCards = this.cards.filter(card => card.columnId === column.id);
+        
+        // Apply category filter if exists
+        const activeFilters = this.columnFilters[column.id];
+        if (activeFilters && activeFilters.length > 0) {
+            columnCards = columnCards.filter(card => {
+                const cardCategory = (card.category || 'uncategorized').toLowerCase();
+                return activeFilters.includes(cardCategory);
+            });
+        }
+        
+        // Calculate total minutes based on filtered cards
+        const totalMinutes = columnCards.reduce((sum, card) => sum + (card.duration || 0), 0);
+        const totalHours = Math.floor(totalMinutes / 60);
+        const totalRemainingMinutes = totalMinutes % 60;
+        const totalDisplay = totalHours > 0 ? `${totalHours}h ${totalRemainingMinutes}m` : `${totalMinutes}m`;
+        
+        // Add filter indicator if filters are active
+        const hasActiveFilter = activeFilters && activeFilters.length > 0;
+        const filterIndicator = hasActiveFilter ? ' <i class="fas fa-filter" style="color: #667eea; font-size: 0.8rem;"></i>' : '';
         
         const columnDiv = document.createElement('div');
         columnDiv.className = 'column';
@@ -737,23 +1058,264 @@ class LearningDashboard {
         columnDiv.innerHTML = `
             <div class="column-header" draggable="true">
                 <div>
-                    <h3 class="column-title">${column.name}</h3>
+                    <h3 class="column-title">${column.name}${filterIndicator}</h3>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1rem;">
-                    <span class="column-count">${columnCards.length}</span>
+                    <span class="column-count">${totalDisplay}</span>
                     <div class="column-actions">
-                        <button onclick="dashboard.deleteColumn('${column.id}')" title="Delete Column">
-                            <i class="fas fa-trash"></i>
+                        <button onclick="dashboard.openColumnFilter('${column.id}')" title="Filter Categories" class="filter-btn">
+                            <i class="fas fa-filter"></i>
                         </button>
                     </div>
                 </div>
             </div>
             <div class="cards-container">
-                ${columnCards.map(card => this.createCardHTML(card)).join('')}
+                ${this.renderCardsForColumn(column, columnCards)}
             </div>
         `;
         
         return columnDiv;
+    }
+
+    renderCardsForColumn(column, columnCards) {
+        const isCompletedColumn = column.name === 'Done' || column.name === 'Completed';
+        const isBacklogColumn = column.name === 'Backlog' || column.name === 'To Do';
+        
+        if (!isCompletedColumn && !isBacklogColumn) {
+            // Regular column - render cards normally
+            return columnCards.map(card => this.createCardHTML(card)).join('');
+        }
+        
+        if (isBacklogColumn) {
+            // Backlog column - group by category
+            const cardsByCategory = {};
+            
+            columnCards.forEach(card => {
+                const category = card.category || 'uncategorized';
+                if (!cardsByCategory[category]) {
+                    cardsByCategory[category] = [];
+                }
+                cardsByCategory[category].push(card);
+            });
+            
+            // Sort categories alphabetically
+            const sortedCategories = Object.keys(cardsByCategory).sort();
+            
+            // Render grouped cards by category
+            return sortedCategories.map(category => {
+                const categoryCards = cardsByCategory[category];
+                const categoryId = `${column.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '-')}-category-${category.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+                const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0';
+                const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Calculate total time for this category
+                const categoryTimeMs = categoryCards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+                const categoryTimeFormatted = this.formatTime(categoryTimeMs);
+                
+                return `
+                    <div class="category-subsection">
+                        <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
+                            <h5 class="category-title">${categoryDisplay} - ${categoryCards.length} Card${categoryCards.length !== 1 ? 's' : ''} (${categoryTimeFormatted})</h5>
+                            <i class="fas fa-chevron-down category-toggle-icon"></i>
+                        </div>
+                        <div class="category-cards" id="${categoryId}" style="display: none;">
+                            ${categoryCards.map(card => this.createCardHTML(card)).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Completed column - group by completion date
+        const cardsByDate = {};
+        const today = new Date().toDateString();
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+        
+        columnCards.forEach(card => {
+            let completedAt;
+            
+            // Try to get a valid date from completedAt or createdAt
+            if (card.completedAt) {
+                completedAt = new Date(card.completedAt);
+            } else if (card.createdAt) {
+                completedAt = new Date(card.createdAt);
+            } else {
+                // Fallback to current date if no valid date is found
+                completedAt = new Date();
+            }
+            
+            // Check if the date is valid
+            if (isNaN(completedAt.getTime())) {
+                completedAt = new Date(); // Fallback to current date
+            }
+            
+            const dateKey = completedAt.toDateString();
+            
+            let displayDate;
+            if (dateKey === today) {
+                displayDate = 'Today';
+            } else if (dateKey === yesterday) {
+                displayDate = 'Yesterday';
+            } else {
+                displayDate = completedAt.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            }
+            
+            if (!cardsByDate[displayDate]) {
+                cardsByDate[displayDate] = [];
+            }
+            cardsByDate[displayDate].push(card);
+        });
+        
+        // Sort dates (most recent first)
+        const sortedDates = Object.keys(cardsByDate).sort((a, b) => {
+            if (a === 'Today') return -1;
+            if (b === 'Today') return 1;
+            if (a === 'Yesterday') return -1;
+            if (b === 'Yesterday') return 1;
+            return new Date(b) - new Date(a);
+        });
+        
+        // Render grouped cards
+        return sortedDates.map(dateLabel => {
+            const cards = cardsByDate[dateLabel];
+            const sectionId = `date-section-${dateLabel.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            
+            // Calculate total planned duration for this date
+            const totalTimeMs = cards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+            const totalTimeFormatted = this.formatTime(totalTimeMs);
+            
+            // Group cards by category within this date
+            const cardsByCategory = {};
+            cards.forEach(card => {
+                const category = card.category || 'uncategorized';
+                if (!cardsByCategory[category]) {
+                    cardsByCategory[category] = [];
+                }
+                cardsByCategory[category].push(card);
+            });
+            
+            // Sort categories alphabetically
+            const sortedCategories = Object.keys(cardsByCategory).sort();
+            
+            const categorySubsections = sortedCategories.map(category => {
+                const categoryCards = cardsByCategory[category];
+                const categoryId = `category-${sectionId}-${category.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+                const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0';
+                const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Calculate total time for this category
+                const categoryTimeMs = categoryCards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+                const categoryTimeFormatted = this.formatTime(categoryTimeMs);
+                
+                return `
+                    <div class="category-subsection">
+                        <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
+                            <h5 class="category-title">${categoryDisplay} - ${categoryCards.length} Card${categoryCards.length !== 1 ? 's' : ''} (${categoryTimeFormatted})</h5>
+                            <i class="fas fa-chevron-down category-toggle-icon"></i>
+                        </div>
+                        <div class="category-cards" id="${categoryId}" style="display: none;">
+                            ${categoryCards.map(card => this.createCardHTML(card)).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            return `
+                <div class="date-section">
+                    <div class="date-header" onclick="dashboard.toggleDateSection('${sectionId}')">
+                        <h4 class="date-title">${dateLabel} - ${cards.length} Card${cards.length !== 1 ? 's' : ''} (${totalTimeFormatted})</h4>
+                        <i class="fas fa-chevron-down date-toggle-icon"></i>
+                    </div>
+                    <div class="date-cards" id="${sectionId}" style="display: none;">
+                        ${categorySubsections}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    toggleDateSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        const icon = section.previousElementSibling.querySelector('.date-toggle-icon');
+        
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        } else {
+            section.style.display = 'none';
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+
+    toggleCategorySection(categoryId) {
+        const section = document.getElementById(categoryId);
+        const icon = section.previousElementSibling.querySelector('.category-toggle-icon');
+        
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        } else {
+            section.style.display = 'none';
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+
+    showConfirmation(title, message, onConfirm) {
+        const modal = document.getElementById('confirmation-modal');
+        const titleElement = document.getElementById('confirmation-title');
+        const messageElement = document.getElementById('confirmation-message');
+        const confirmBtn = document.getElementById('confirmation-confirm');
+        const cancelBtn = document.getElementById('confirmation-cancel');
+        
+        // Set content
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        
+        // Show modal
+        modal.classList.add('show');
+        
+        // Handle confirm
+        const handleConfirm = () => {
+            modal.classList.remove('show');
+            onConfirm();
+            cleanup();
+        };
+        
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.remove('show');
+            cleanup();
+        };
+        
+        // Cleanup function to remove event listeners
+        const cleanup = () => {
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            modal.removeEventListener('click', handleModalClick);
+        };
+        
+        // Handle clicking outside modal
+        const handleModalClick = (e) => {
+            if (e.target === modal) {
+                handleCancel();
+            }
+        };
+        
+        // Add event listeners
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
+        modal.addEventListener('click', handleModalClick);
     }
 
     createCardHTML(card) {
@@ -776,6 +1338,10 @@ class LearningDashboard {
         }
         category = category || 'programming';
         
+        // Find the category object to get its color
+        const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+        const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0'; // Default border color
+        
         const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
         
         // Format duration
@@ -789,7 +1355,7 @@ class LearningDashboard {
         const assignedDate = card.assignedDate ? new Date(card.assignedDate) : new Date(card.createdAt);
         
         return `
-            <div class="card category-${category}" draggable="true" data-card-id="${card.id}" style="cursor: pointer;">
+            <div class="card" draggable="true" data-card-id="${card.id}" style="cursor: pointer; border-left-color: ${categoryColor};">
                 <div class="card-header">
                     <h4 class="card-title">${categoryDisplay}</h4>
                 </div>

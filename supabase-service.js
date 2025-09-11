@@ -123,6 +123,36 @@ class SupabaseService {
         return data;
     }
 
+    async updateCategory(id, updates) {
+        await this.init();
+        const { data, error } = await this.supabase
+            .from('categories')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        
+        if (error) {
+            console.error('Error updating category:', error);
+            throw error;
+        }
+        
+        return data;
+    }
+
+    async deleteCategory(id) {
+        await this.init();
+        const { error } = await this.supabase
+            .from('categories')
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            console.error('Error deleting category:', error);
+            throw error;
+        }
+    }
+
     // Card operations
     async getCards() {
         await this.init();

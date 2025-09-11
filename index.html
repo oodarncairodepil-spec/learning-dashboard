@@ -21,6 +21,9 @@
                 <button id="add-card-btn" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Add Card
                 </button>
+                <button id="add-category-btn" class="btn btn-accent">
+                    <i class="fas fa-plus"></i> Add Category
+                </button>
             </div>
         </div>
     </header>
@@ -47,10 +50,7 @@
                     <div class="form-group">
                         <label for="card-category">Category:</label>
                         <select id="card-category" name="category" required>
-                            <option value="art">Art</option>
-                            <option value="music">Music</option>
-                            <option value="programming" selected>Programming</option>
-                            <option value="foreign-language">Foreign Language</option>
+                            <!-- Options will be populated by JavaScript from database -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -66,17 +66,11 @@
                             <span class="duration-label">Minutes</span>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <button type="button" class="btn btn-secondary" id="add-new-category-btn">Add New Category</button>
-                    </div>
-                    <div class="form-group" id="newCategoryGroup" style="display: none;">
-                        <label for="newCategoryName">New Category Name:</label>
-                        <input type="text" id="newCategoryName" name="newCategoryName" placeholder="Enter new category name">
-                    </div>
+
                     <div class="form-group">
                         <label for="cardAssignedDate">Assigned Date:</label>
                         <div class="date-input-container">
-                            <input type="date" id="cardAssignedDate" name="assignedDate" required>
+                            <input type="date" id="cardAssignedDate" name="assignedDate">
                             <span class="date-display" id="dateDisplay"></span>
                         </div>
                     </div>
@@ -118,6 +112,65 @@
         </div>
     </div>
 
+
+
+    <!-- Add Category Modal -->
+    <div id="category-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="category-modal-title">Add New Category</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="category-form">
+                    <div class="form-group">
+                        <label for="category-name">Category Name:</label>
+                        <input type="text" id="category-name" name="name" required placeholder="e.g., Programming, Art, Music">
+                    </div>
+                    <div class="form-group">
+                        <label for="category-color">Category Color:</label>
+                        <input type="color" id="category-color" name="color" value="#3498db">
+                    </div>
+                    <div class="form-group">
+                        <label>Existing Categories:</label>
+                        <div id="category-list" class="category-list">
+                            <!-- Categories will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-danger" id="delete-category" style="display: none;">Delete</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-category">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="submit-category">Add Category</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filter-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="filter-modal-title">Filter Categories</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Categories to Show:</label>
+                    <div id="filter-categories" class="filter-categories">
+                        <!-- Category checkboxes will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="unselect-all-filter">Unselect All</button>
+                    <button type="button" class="btn btn-secondary" id="clear-filter">Show All</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-filter">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="apply-filter">Apply Filter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Timer Display -->
     <div id="timer-display" class="timer-display hidden">
         <div class="timer-content">
@@ -132,6 +185,22 @@
                 <button id="stop-timer" class="btn btn-danger">
                     <i class="fas fa-stop"></i>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal">
+        <div class="modal-content confirmation-modal-content">
+            <div class="modal-header">
+                <h3 id="confirmation-title">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirmation-message">Are you sure you want to proceed?</p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="confirmation-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmation-confirm">Confirm</button>
             </div>
         </div>
     </div>
