@@ -3,6 +3,7 @@ class SupabaseService {
     constructor() {
         this.supabase = null;
         this.initialized = false;
+        this.currentUser = null;
     }
 
     async init() {
@@ -17,12 +18,91 @@ class SupabaseService {
         console.log('Supabase service initialized');
     }
 
+    // Authentication methods
+    async authenticateUser(email, password) {
+        await this.init();
+        
+        // Simple password verification (in production, use proper hashing)
+        const users = {
+            'kalantara.waranggana@gmail.com': 'abc123',
+            'ligar.pandika@gmail.com': 'cba321'
+        };
+        
+        if (users[email] && users[email] === password) {
+            // Get user from database
+            const { data, error } = await this.supabase
+                .from('users')
+                .select('*')
+                .eq('email', email)
+                .single();
+            
+            if (error) {
+                console.error('Error fetching user:', error);
+                throw new Error('Authentication failed');
+            }
+            
+            this.currentUser = data;
+            return data;
+        } else {
+            throw new Error('Invalid credentials');
+        }
+    }
+
+    getCurrentUser() {
+        return this.currentUser;
+    }
+
+    setCurrentUser(user) {
+        this.currentUser = user;
+    }
+
+    async getUserByEmail(email) {
+        await this.init();
+        
+        // First check if users table exists and has any data
+        const { data: allUsers, error: tableError } = await this.supabase
+            .from('users')
+            .select('email')
+            .limit(5);
+            
+        if (tableError) {
+            console.error('Error accessing users table:', tableError);
+            console.log('This usually means the database schema has not been executed in Supabase yet.');
+            return null;
+        }
+        
+        console.log('Users table exists. Found users:', allUsers?.map(u => u.email) || 'none');
+        
+        const { data, error } = await this.supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle(); // Use maybeSingle instead of single to handle 0 results
+        
+        if (error) {
+            console.error('Error fetching user by email:', error);
+            return null;
+        }
+        
+        if (!data) {
+            console.log(`No user found with email: ${email}`);
+            console.log('Available users in database:', allUsers?.map(u => u.email) || 'none');
+        }
+        
+        return data;
+    }
+
     // Column operations
     async getColumns() {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
         const { data, error } = await this.supabase
             .from('columns')
             .select('*')
+            .eq('user_id', this.currentUser.id)
             .order('position', { ascending: true });
         
         if (error) {
@@ -35,9 +115,13 @@ class SupabaseService {
 
     async createColumn(title, position) {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
         const { data, error } = await this.supabase
             .from('columns')
-            .insert([{ title, position }])
+            .insert([{ title, position, user_id: this.currentUser.id }])
             .select()
             .single();
         
@@ -94,9 +178,14 @@ class SupabaseService {
     // Category operations
     async getCategories() {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
         const { data, error } = await this.supabase
             .from('categories')
             .select('*')
+            .eq('user_id', this.currentUser.id)
             .order('name', { ascending: true });
         
         if (error) {
@@ -109,9 +198,13 @@ class SupabaseService {
 
     async createCategory(name, color = '#007bff') {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
         const { data, error } = await this.supabase
             .from('categories')
-            .insert([{ name, color }])
+            .insert([{ name, color, user_id: this.currentUser.id }])
             .select()
             .single();
         
@@ -156,6 +249,10 @@ class SupabaseService {
     // Card operations
     async getCards() {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
         const { data, error } = await this.supabase
             .from('cards')
             .select(`
@@ -163,6 +260,7 @@ class SupabaseService {
                 categories (id, name, color),
                 columns (id, title)
             `)
+            .eq('user_id', this.currentUser.id)
             .order('position', { ascending: true });
         
         if (error) {
@@ -175,9 +273,16 @@ class SupabaseService {
 
     async createCard(cardData) {
         await this.init();
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+        
+        // Add user_id to card data
+        const cardWithUser = { ...cardData, user_id: this.currentUser.id };
+        
         const { data, error } = await this.supabase
             .from('cards')
-            .insert([cardData])
+            .insert([cardWithUser])
             .select(`
                 *,
                 categories (id, name, color),

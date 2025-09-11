@@ -9,6 +9,17 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="supabase-service.js"></script>
+    <script>
+        // Check authentication immediately when page loads
+        (function() {
+            const isAuthenticated = localStorage.getItem('isAuthenticated');
+            const currentUser = localStorage.getItem('currentUser');
+            
+            if (!isAuthenticated || isAuthenticated !== 'true' || !currentUser) {
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
 </head>
 <body>
     <header class="header">
@@ -23,6 +34,9 @@
                 </button>
                 <button id="add-category-btn" class="btn btn-accent">
                     <i class="fas fa-plus"></i> Add Category
+                </button>
+                <button id="logout-btn" class="btn btn-danger">
+                    <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>
         </div>

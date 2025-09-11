@@ -16,6 +16,12 @@ class LearningDashboard {
 
     async init() {
         try {
+            // Check authentication first
+            if (!(await this.checkAuthentication())) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
             this.isLoading = true;
             await this.loadData();
             this.setupEventListeners();
@@ -29,15 +35,56 @@ class LearningDashboard {
         }
     }
 
+    async checkAuthentication() {
+        const isAuthenticated = localStorage.getItem('isAuthenticated');
+        const currentUserEmail = localStorage.getItem('currentUser');
+        
+        if (isAuthenticated === 'true' && currentUserEmail) {
+            // Set current user in supabase service and wait for it to complete
+            await this.setCurrentUserFromEmail(currentUserEmail);
+            return true;
+        }
+        
+        return false;
+    }
+
+    async setCurrentUserFromEmail(email) {
+        try {
+            const user = await supabaseService.getUserByEmail(email);
+            if (user) {
+                supabaseService.setCurrentUser(user);
+            }
+        } catch (error) {
+            console.error('Error setting current user:', error);
+            this.logout();
+        }
+    }
+
+    logout() {
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    }
+
     // Data Management
     async loadData() {
         try {
+            // Debug: Show current user info
+            const currentUser = supabaseService.getCurrentUser();
+            console.log('🔍 Current user loading data:', currentUser);
+            
             // Load columns, cards, and categories from Supabase
             const [columns, cards, categories] = await Promise.all([
                 supabaseService.getColumns(),
                 supabaseService.getCards(),
                 supabaseService.getCategories()
             ]);
+            
+            // Debug: Show what data was loaded
+            console.log('📊 Data loaded for user:', currentUser?.email);
+            console.log('📋 Columns:', columns.length, columns);
+            console.log('🎯 Categories:', categories.length, categories);
+            console.log('📝 Cards:', cards.length, cards);
             
             this.columns = columns.map(col => ({
                 id: col.id,
@@ -928,6 +975,14 @@ class LearningDashboard {
         if (cancelFilterBtn) {
             cancelFilterBtn.addEventListener('click', () => {
                 filterModal.classList.remove('show');
+            });
+        }
+        
+        // Logout button
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
             });
         }
         

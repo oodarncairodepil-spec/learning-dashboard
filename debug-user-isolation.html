@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug User Isolation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .user-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .data-info {
+            background: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+        }
+        .error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        .logout-btn {
+            background: #f44336;
+        }
+        .logout-btn:hover {
+            background: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 User Isolation Debug Tool</h1>
+    
+    <div class="debug-section user-info">
+        <h2>👤 Current User Information</h2>
+        <div id="user-info">Loading...</div>
+    </div>
+    
+    <div class="debug-section data-info">
+        <h2>📊 User Data Summary</h2>
+        <div id="data-summary">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>🔧 Actions</h2>
+        <button onclick="refreshData()">🔄 Refresh Data</button>
+        <button onclick="testOtherUser()">👥 Test Other User Login</button>
+        <button onclick="logout()" class="logout-btn">🚪 Logout</button>
+        <button onclick="goToDashboard()">📋 Go to Dashboard</button>
+    </div>
+    
+    <div class="debug-section">
+        <h2>📝 Raw Data (for debugging)</h2>
+        <div id="raw-data">Loading...</div>
+    </div>
+    
+    <script src="supabase-config.js"></script>
+    <script src="supabase-service.js"></script>
+    <script>
+        let currentUserData = null;
+        
+        async function loadUserInfo() {
+            try {
+                // Check if user is authenticated
+                const isAuth = localStorage.getItem('isAuthenticated');
+                const userEmail = localStorage.getItem('currentUser');
+                
+                if (!isAuth || !userEmail) {
+                    document.getElementById('user-info').innerHTML = `
+                        <div class="error">
+                            <h3>❌ Not Authenticated</h3>
+                            <p>No user is currently logged in.</p>
+                            <button onclick="window.location.href='login.html'">Go to Login</button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Get current user from service
+                await supabaseService.setCurrentUserFromEmail(userEmail);
+                currentUserData = supabaseService.getCurrentUser();
+                
+                document.getElementById('user-info').innerHTML = `
+                    <div class="success">
+                        <h3>✅ User Authenticated</h3>
+                        <p><strong>Email:</strong> ${currentUserData?.email || 'Unknown'}</p>
+                        <p><strong>User ID:</strong> ${currentUserData?.id || 'Unknown'}</p>
+                        <p><strong>Name:</strong> ${currentUserData?.name || 'Not set'}</p>
+                        <p><strong>Created:</strong> ${currentUserData?.created_at ? new Date(currentUserData.created_at).toLocaleString() : 'Unknown'}</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                document.getElementById('user-info').innerHTML = `
+                    <div class="error">
+                        <h3>❌ Authentication Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function loadDataSummary() {
+            try {
+                if (!currentUserData) {
+                    document.getElementById('data-summary').innerHTML = '<p>Please authenticate first.</p>';
+                    return;
+                }
+                
+                // Load data from Supabase
+                const [columns, categories, cards] = await Promise.all([
+                    supabaseService.getColumns(),
+                    supabaseService.getCategories(),
+                    supabaseService.getCards()
+                ]);
+                
+                document.getElementById('data-summary').innerHTML = `
+                    <div class="success">
+                        <h3>📊 Data for ${currentUserData.email}</h3>
+                        <p><strong>📋 Columns:</strong> ${columns.length}</p>
+                        <p><strong>🎯 Categories:</strong> ${categories.length}</p>
+                        <p><strong>📝 Cards:</strong> ${cards.length}</p>
+                        
+                        ${columns.length > 0 ? `
+                            <h4>Column Details:</h4>
+                            <ul>
+                                ${columns.map(col => `<li>${col.title} (ID: ${col.id}, User: ${col.user_id})</li>`).join('')}
+                            </ul>
+                        ` : ''}
+                        
+                        ${categories.length > 0 ? `
+                            <h4>Category Details:</h4>
+                            <ul>
+                                ${categories.map(cat => `<li>${cat.name} (ID: ${cat.id}, User: ${cat.user_id})</li>`).join('')}
+                            </ul>
+                        ` : ''}
+                    </div>
+                `;
+                
+                // Show raw data
+                document.getElementById('raw-data').innerHTML = `
+                    <h4>Raw Columns Data:</h4>
+                    <pre>${JSON.stringify(columns, null, 2)}</pre>
+                    <h4>Raw Categories Data:</h4>
+                    <pre>${JSON.stringify(categories, null, 2)}</pre>
+                    <h4>Raw Cards Data (first 3):</h4>
+                    <pre>${JSON.stringify(cards.slice(0, 3), null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                document.getElementById('data-summary').innerHTML = `
+                    <div class="error">
+                        <h3>❌ Data Loading Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function refreshData() {
+            await loadUserInfo();
+            await loadDataSummary();
+        }
+        
+        function testOtherUser() {
+            const otherEmail = currentUserData?.email === 'kalantara.waranggana@gmail.com' 
+                ? 'ligar.pandika@gmail.com' 
+                : 'kalantara.waranggana@gmail.com';
+            
+            if (confirm(`Switch to ${otherEmail} to test user isolation?`)) {
+                localStorage.setItem('currentUser', otherEmail);
+                window.location.reload();
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('isAuthenticated');
+            localStorage.removeItem('currentUser');
+            window.location.href = 'login.html';
+        }
+        
+        function goToDashboard() {
+            window.location.href = 'index.html';
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', async () => {
+            await refreshData();
+        });
+    </script>
+</body>
+</html>
