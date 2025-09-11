@@ -1,8 +1,5 @@
 -- Learning Progress Dashboard Database Schema for Supabase
 
--- Enable Row Level Security
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
-
 -- Create columns table
 CREATE TABLE IF NOT EXISTS columns (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
