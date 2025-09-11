@@ -349,7 +349,7 @@ class LearningDashboard {
             
             header.addEventListener('dragstart', (e) => {
                 // Prevent dragging if clicking on buttons
-                if (e.target.closest('.column-actions')) {
+                if (e.target && e.target.closest && e.target.closest('.column-actions')) {
                     e.preventDefault();
                     return;
                 }
