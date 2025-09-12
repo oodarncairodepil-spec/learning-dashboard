@@ -50,6 +50,7 @@ CREATE TABLE cards (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     duration INTEGER DEFAULT 0, -- in minutes
     date_created DATE DEFAULT CURRENT_DATE,
+    completion_date TIMESTAMP WITH TIME ZONE, -- when card was moved to Done column
     position INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

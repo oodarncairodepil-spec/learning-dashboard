@@ -332,16 +332,24 @@ class SupabaseService {
         }
     }
 
-    async moveCard(cardId, newColumnId, newPosition) {
+    async moveCard(cardId, newColumnId, newPosition, completionDate = null) {
         await this.init();
+        
+        // Prepare update data
+        const updateData = { 
+            column_id: newColumnId, 
+            position: newPosition 
+        };
+        
+        // Add completion_date if provided
+        if (completionDate !== null) {
+            updateData.completion_date = completionDate;
+        }
         
         // Update the card's column and position
         const { data, error } = await this.supabase
             .from('cards')
-            .update({ 
-                column_id: newColumnId, 
-                position: newPosition 
-            })
+            .update(updateData)
             .eq('id', cardId)
             .select(`
                 *,

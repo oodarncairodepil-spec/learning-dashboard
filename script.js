@@ -107,6 +107,7 @@ class LearningDashboard {
                     durationHours: durationHours,
                     durationMinutes: durationMinutes,
                     assignedDate: card.date_created,
+                    completedAt: card.completion_date,
                     timerStart: null,
                     elapsedTime: 0
                 };
@@ -341,11 +342,13 @@ class LearningDashboard {
             const isMovingToCompleted = newColumn && (newColumn.name === 'Done' || newColumn.name === 'Completed');
             
             // Set completion date if moving to completed column
+            let completionDate = null;
             if (isMovingToCompleted && !card.completedAt) {
-                card.completedAt = new Date().toISOString();
+                completionDate = new Date().toISOString();
+                card.completedAt = completionDate;
             }
             
-            await supabaseService.moveCard(cardId, newColumnId, newPosition);
+            await supabaseService.moveCard(cardId, newColumnId, newPosition, completionDate);
             card.columnId = newColumnId;
             
             // Handle timer logic based on column
@@ -1207,19 +1210,12 @@ class LearningDashboard {
             
             const dateKey = completedAt.toDateString();
             
-            let displayDate;
-            if (dateKey === today) {
-                displayDate = 'Today';
-            } else if (dateKey === yesterday) {
-                displayDate = 'Yesterday';
-            } else {
-                displayDate = completedAt.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                });
-            }
+            // Always show the actual date instead of "Today" or "Yesterday"
+            const displayDate = completedAt.toLocaleDateString('en-US', { 
+                day: 'numeric', 
+                month: 'short', 
+                year: 'numeric' 
+            });
             
             if (!cardsByDate[displayDate]) {
                 cardsByDate[displayDate] = [];
@@ -1229,10 +1225,6 @@ class LearningDashboard {
         
         // Sort dates (most recent first)
         const sortedDates = Object.keys(cardsByDate).sort((a, b) => {
-            if (a === 'Today') return -1;
-            if (b === 'Today') return 1;
-            if (a === 'Yesterday') return -1;
-            if (b === 'Yesterday') return 1;
             return new Date(b) - new Date(a);
         });
         
