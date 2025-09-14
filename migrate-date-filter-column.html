@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Migration - Date Filter Column</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+</head>
+<body>
+    <h1>Database Migration - Date Filter Column</h1>
+    <button id="migrateBtn">Add Date Filter Type Column</button>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('migrateBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Running migration...';
+            
+            try {
+                // Initialize Supabase
+                const supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.serviceRoleKey);
+                
+                // Test if date_filter_type column exists
+                const { data: testData, error: testError } = await supabase
+                    .from('column_settings')
+                    .select('date_filter_type')
+                    .limit(1);
+                
+                if (testError && testError.code === '42703') {
+                    // Column doesn't exist, show migration instructions
+                    resultDiv.innerHTML = `
+                        <p style="color: red;">Migration needed: date_filter_type column missing</p>
+                        <p>Please run this SQL in your Supabase dashboard:</p>
+                        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">
+ALTER TABLE column_settings 
+ADD COLUMN IF NOT EXISTS date_filter_type VARCHAR(20) DEFAULT 'assigned_date' 
+CHECK (date_filter_type IN ('assigned_date', 'completed_date'));
+
+COMMENT ON COLUMN column_settings.date_filter_type IS 'Which date to use for grouping cards in day_category mode: assigned_date (use assigned date) or completed_date (use completion date)';
+
+UPDATE column_settings 
+SET date_filter_type = 'assigned_date' 
+WHERE date_filter_type IS NULL;
+                        </pre>
+                        <p>After running the SQL, click the button again to verify.</p>
+                    `;
+                } else if (testError) {
+                    resultDiv.innerHTML = `<p style="color: red;">Error testing column: ${testError.message}</p>`;
+                } else {
+                    resultDiv.innerHTML = '<p style="color: green;">✅ Migration completed: date_filter_type column exists!</p>';
+                }
+                
+            } catch (err) {
+                console.error('Migration error:', err);
+                resultDiv.innerHTML = `
+                    <p style="color: red;">Error: ${err.message}</p>
+                    <p>Please run this SQL in your Supabase dashboard:</p>
+                    <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">
+ALTER TABLE column_settings 
+ADD COLUMN IF NOT EXISTS date_filter_type VARCHAR(20) DEFAULT 'assigned_date' 
+CHECK (date_filter_type IN ('assigned_date', 'completed_date'));
+
+COMMENT ON COLUMN column_settings.date_filter_type IS 'Which date to use for grouping cards in day_category mode: assigned_date (use assigned date) or completed_date (use completion date)';
+
+UPDATE column_settings 
+SET date_filter_type = 'assigned_date' 
+WHERE date_filter_type IS NULL;
+                    </pre>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<div class="date-section">
+                            <div class="date-header" onclick="dashboard.toggleDateSection('date-section-Sep-15--2025')">
+                                <h4 class="date-title">Sep 15, 2025 - 11 Cards • 04:34</h4>
+                                <i class="fas date-toggle-icon fa-chevron-up"></i>
+                            </div>
+                            <div class="date-cards" id="date-section-Sep-15--2025" style="display: block;">
+                                
+                            <div class="category-subsection">
+                                <div class="category-header" onclick="dashboard.toggleCategorySection('category-date-section-Sep-15--2025-Language')" style="border-left: 3px solid #28a745;">
+                                    <h5 class="category-title">Language - 5 Cards • 00:58</h5>
+                                    <i class="fas fa-chevron-down category-toggle-icon"></i>
+                                </div>
+                                <div class="category-cards" id="category-date-section-Sep-15--2025-Language" style="display: none;">
+                                    
+            <div class="card" draggable="true" data-card-id="829f92da-18a9-4947-9a57-f995caeee4fb" style="cursor: pointer; border-left-color: #28a745;">
+                <div class="card-header">
+                    <h4 class="card-title">Language</h4>
+                </div>
+                <p class="card-description">el-metodo-spanish-1 Lesson 10 Level 1</p>
+                <div class="card-meta">
+                    <span class="card-category category-Language">15m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="70af2150-e5c0-4d75-aabd-8c33fe4708e5" style="cursor: pointer; border-left-color: #28a745;">
+                <div class="card-header">
+                    <h4 class="card-title">Language</h4>
+                </div>
+                <p class="card-description">el-metodo-spanish-1 Lesson 11 Level 1</p>
+                <div class="card-meta">
+                    <span class="card-category category-Language">9m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="8bdf556b-bd07-40c8-b023-e1262be21d2c" style="cursor: pointer; border-left-color: #28a745;">
+                <div class="card-header">
+                    <h4 class="card-title">Language</h4>
+                </div>
+                <p class="card-description">el-metodo-spanish-1 Lesson 12 Level 1</p>
+                <div class="card-meta">
+                    <span class="card-category category-Language">12m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="cc57a020-44e1-4aee-a11d-7592f50e6fc5" style="cursor: pointer; border-left-color: #28a745;">
+                <div class="card-header">
+                    <h4 class="card-title">Language</h4>
+                </div>
+                <p class="card-description">el-metodo-spanish-1 Lesson 13 Level 1</p>
+                <div class="card-meta">
+                    <span class="card-category category-Language">10m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="d84c58c5-c7c0-49e9-8985-554aa1dd1606" style="cursor: pointer; border-left-color: #28a745;">
+                <div class="card-header">
+                    <h4 class="card-title">Language</h4>
+                </div>
+                <p class="card-description">el-metodo-spanish-1 Lesson 14 Level 1</p>
+                <div class="card-meta">
+                    <span class="card-category category-Language">12m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+                                </div>
+                            </div>
+                        
+                            <div class="category-subsection">
+                                <div class="category-header" onclick="dashboard.toggleCategorySection('category-date-section-Sep-15--2025-Music')" style="border-left: 3px solid #ffc107;">
+                                    <h5 class="category-title">Music - 6 Cards • 03:36</h5>
+                                    <i class="fas fa-chevron-down category-toggle-icon"></i>
+                                </div>
+                                <div class="category-cards" id="category-date-section-Sep-15--2025-Music" style="display: none;">
+                                    
+            <div class="card" draggable="true" data-card-id="15be4b4e-4ae5-46b4-bd24-6b044391625d" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Welcome &amp; Overview</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">24m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="83469f27-c49a-45bd-a499-0b074580f765" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Modes (The Musical Modes, AKA The Church Modes)</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">49m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="9308431f-aa86-4fed-9f8f-d11d0ffbbb3e" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Using Modes</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">28m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="65e88d12-15c0-4dde-9164-0452cd6357a4" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Deeper Into Interval</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">40m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="fe100f72-9da8-4dbc-86e0-47673d22d59c" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Consonance and Dissonance</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">28m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+            <div class="card" draggable="true" data-card-id="b2a38629-8bf2-4a33-9e18-727d229c7218" style="cursor: pointer; border-left-color: #ffc107;">
+                <div class="card-header">
+                    <h4 class="card-title">Music</h4>
+                </div>
+                <p class="card-description">MTCC Introduction to Counterpoint</p>
+                <div class="card-meta">
+                    <span class="card-category category-Music">47m</span>
+                    <span>15 Sep 2025</span>
+                </div>
+                
+            </div>
+        
+                                </div>
+                            </div>
+                        
+                            </div>
+                        </div>

@@ -141,7 +141,37 @@ class ArchiveDashboard {
         const columnId = document.getElementById('settingsColumnSelect')?.value;
         if (columnId && settings.column_settings && settings.column_settings[columnId]) {
             const columnSettings = settings.column_settings[columnId];
-            // Add column-specific setting population here if needed
+            
+            // Set column display mode
+            const columnDisplayMode = columnSettings.column_display_mode || 'default';
+            const columnDisplayRadio = document.querySelector(`input[name="columnDisplayMode"][value="${columnDisplayMode}"]`);
+            if (columnDisplayRadio) {
+                columnDisplayRadio.checked = true;
+            }
+            
+            // Set date filter type (default to assigned_date)
+            const dateFilterType = columnSettings.date_filter_type || 'assigned_date';
+            const dateFilterRadio = document.querySelector(`input[name="dateFilterType"][value="${dateFilterType}"]`);
+            if (dateFilterRadio) {
+                dateFilterRadio.checked = true;
+            }
+            
+            // Set date sort order (default to descending)
+            const dateSortOrder = columnSettings.date_sort_order || 'descending';
+            const dateSortRadio = document.querySelector(`input[name="dateSortOrder"][value="${dateSortOrder}"]`);
+            if (dateSortRadio) {
+                dateSortRadio.checked = true;
+            }
+            
+            // Show/hide date filter and sort sections based on column display mode
+            const dateFilterSection = document.getElementById('dateFilterSection');
+            const dateSortSection = document.getElementById('dateSortSection');
+            if (dateFilterSection) {
+                dateFilterSection.style.display = columnDisplayMode === 'day_category' ? 'block' : 'none';
+            }
+            if (dateSortSection) {
+                dateSortSection.style.display = columnDisplayMode === 'day_category' ? 'block' : 'none';
+            }
         }
     }
 
@@ -197,7 +227,15 @@ class ArchiveDashboard {
                 if (!settings.column_settings[columnId]) {
                     settings.column_settings[columnId] = {};
                 }
-                // Add any column-specific settings here
+                
+                const formData = new FormData(document.getElementById('settingsForm'));
+                settings.column_settings[columnId] = {
+                    column_display_mode: formData.get('columnDisplayMode') || 'default',
+                    count_display_type: formData.get('countDisplayType') || 'cards_only',
+                    show_card_duration: document.getElementById('showCardDuration')?.checked || false,
+                    date_filter_type: formData.get('dateFilterType') || 'assigned_date',
+                    date_sort_order: formData.get('dateSortOrder') || 'descending'
+                };
             }
             
             // Save to database
@@ -559,6 +597,28 @@ class ArchiveDashboard {
             });
         }
 
+        // Column display mode change handler
+        document.addEventListener('change', (e) => {
+            if (e.target.name === 'columnDisplayMode') {
+                const dateFilterSection = document.getElementById('dateFilterSection');
+                const dateSortSection = document.getElementById('dateSortSection');
+                if (dateFilterSection) {
+                    if (e.target.value === 'day_category') {
+                        dateFilterSection.style.display = 'block';
+                    } else {
+                        dateFilterSection.style.display = 'none';
+                    }
+                }
+                if (dateSortSection) {
+                    if (e.target.value === 'day_category') {
+                        dateSortSection.style.display = 'block';
+                    } else {
+                        dateSortSection.style.display = 'none';
+                    }
+                }
+            }
+        });
+
         // Close modals when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
@@ -645,11 +705,28 @@ class ArchiveDashboard {
             return '<div class="no-cards-message">No archived cards</div>';
         }
 
+        // Get column settings to determine date filter type
+        const columnSettings = this.columnSettings?.[column.id] || {
+            date_filter_type: 'assigned_date'
+        };
+        const dateFilterType = columnSettings.date_filter_type || 'assigned_date';
+
         // Group cards by date and category
         const groupedCards = {};
         
         columnCards.forEach(card => {
-            const dateKey = this.formatDate(card.created_at);
+            let dateToUse;
+            
+            // Use the selected date filter type
+            if (dateFilterType === 'completed_date') {
+                // Use completed date (completed_at or created_at as fallback)
+                dateToUse = card.completed_at || card.created_at;
+            } else {
+                // Use assigned date (assigned_date or created_at as fallback)
+                dateToUse = card.assigned_date || card.created_at;
+            }
+            
+            const dateKey = this.formatDate(dateToUse);
             if (!groupedCards[dateKey]) {
                 groupedCards[dateKey] = {};
             }
@@ -669,8 +746,15 @@ class ArchiveDashboard {
 
         let html = '';
         
-        // Sort dates (newest first)
-        const sortedDates = Object.keys(groupedCards).sort((a, b) => new Date(b) - new Date(a));
+        // Sort dates based on user preference
+        const dateSortOrder = columnSettings.date_sort_order || 'descending';
+        const sortedDates = Object.keys(groupedCards).sort((a, b) => {
+            if (dateSortOrder === 'ascending') {
+                return new Date(a) - new Date(b); // oldest first
+            } else {
+                return new Date(b) - new Date(a); // newest first (default)
+            }
+        });
         
         sortedDates.forEach(dateKey => {
             const dateGroups = groupedCards[dateKey];

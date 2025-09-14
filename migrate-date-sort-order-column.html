@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Date Sort Order Column Migration</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .config-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .sql-code {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Add Date Sort Order Column Migration</h1>
+        
+        <div class="config-section">
+            <h3>Supabase Configuration</h3>
+            <input type="text" id="supabaseUrl" placeholder="Supabase URL" value="">
+            <input type="password" id="supabaseKey" placeholder="Supabase Anon Key" value="">
+        </div>
+
+        <div id="status"></div>
+
+        <button onclick="checkColumn()">Check if date_sort_order Column Exists</button>
+        <button onclick="addColumn()" id="addBtn" disabled>Add date_sort_order Column</button>
+
+        <div class="info">
+            <h3>What this migration does:</h3>
+            <ul>
+                <li>Adds a 'date_sort_order' column to the 'column_settings' table</li>
+                <li>Sets default value to 'descending'</li>
+                <li>Adds a check constraint to ensure only 'ascending' or 'descending' values</li>
+                <li>Updates existing records with the default value</li>
+            </ul>
+        </div>
+
+        <div class="sql-code" id="sqlCode">
+ALTER TABLE column_settings 
+ADD COLUMN date_sort_order VARCHAR(10) DEFAULT 'descending';
+
+ALTER TABLE column_settings 
+ADD CONSTRAINT check_date_sort_order 
+CHECK (date_sort_order IN ('ascending', 'descending'));
+
+UPDATE column_settings 
+SET date_sort_order = 'descending' 
+WHERE date_sort_order IS NULL;
+        </div>
+    </div>
+
+    <script>
+        let supabase;
+
+        function initSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            
+            if (!url || !key) {
+                showStatus('Please enter both Supabase URL and Key', 'error');
+                return false;
+            }
+            
+            supabase = window.supabase.createClient(url, key);
+            return true;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        async function checkColumn() {
+            if (!initSupabase()) return;
+            
+            showStatus('Checking if date_sort_order column exists...', 'info');
+            
+            try {
+                // Try to query the column_settings table to see if date_sort_order column exists
+                const { data, error } = await supabase
+                    .from('column_settings')
+                    .select('date_sort_order')
+                    .limit(1);
+                
+                if (error) {
+                    if (error.message.includes('column "date_sort_order" does not exist')) {
+                        showStatus('✅ Column date_sort_order does not exist. Ready to add it!', 'info');
+                        document.getElementById('addBtn').disabled = false;
+                    } else {
+                        showStatus(`Error checking column: ${error.message}`, 'error');
+                    }
+                } else {
+                    showStatus('⚠️ Column date_sort_order already exists!', 'success');
+                    document.getElementById('addBtn').disabled = true;
+                }
+            } catch (err) {
+                showStatus(`Error: ${err.message}`, 'error');
+            }
+        }
+
+        async function addColumn() {
+            if (!initSupabase()) return;
+            
+            showStatus('Adding date_sort_order column...', 'info');
+            
+            try {
+                // Execute the SQL to add the column
+                const { data, error } = await supabase.rpc('exec_sql', {
+                    sql: `
+                        ALTER TABLE column_settings 
+                        ADD COLUMN date_sort_order VARCHAR(10) DEFAULT 'descending';
+                        
+                        ALTER TABLE column_settings 
+                        ADD CONSTRAINT check_date_sort_order 
+                        CHECK (date_sort_order IN ('ascending', 'descending'));
+                        
+                        UPDATE column_settings 
+                        SET date_sort_order = 'descending' 
+                        WHERE date_sort_order IS NULL;
+                    `
+                });
+                
+                if (error) {
+                    showStatus(`Error adding column: ${error.message}`, 'error');
+                } else {
+                    showStatus('✅ Successfully added date_sort_order column!', 'success');
+                    document.getElementById('addBtn').disabled = true;
+                }
+            } catch (err) {
+                showStatus(`Error: ${err.message}. You may need to run the SQL manually in your Supabase dashboard.`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

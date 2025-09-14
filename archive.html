@@ -117,6 +117,42 @@
                         </div>
                     </div>
 
+                    <!-- Date Filter Section - Only shown when day_category is selected -->
+                    <div class="settings-section" id="dateFilterSection" style="display: none;">
+                        <h3>Date Filter for Day Sections</h3>
+                        <div class="form-group">
+                            <label>Which date should be used to group cards by day?</label>
+                            <div class="radio-group">
+                                <label class="radio-option">
+                                    <input type="radio" name="dateFilterType" value="completed_date">
+                                    <span>Filter the section by completed date</span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="dateFilterType" value="assigned_date" checked>
+                                    <span>Filter the section by assigned date</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date Sort Order Section - Only shown when day_category is selected -->
+                    <div class="settings-section" id="dateSortSection" style="display: none;">
+                        <h3>Date Sort Order</h3>
+                        <div class="form-group">
+                            <label>How should the date sections be sorted?</label>
+                            <div class="radio-group">
+                                <label class="radio-option">
+                                    <input type="radio" name="dateSortOrder" value="descending" checked>
+                                    <span>Sort the section date by Descending (newest first)</span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="dateSortOrder" value="ascending">
+                                    <span>Sort the section date by Ascending (oldest first)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="settings-section">
                         <h3>Column Count Display</h3>
                         <div class="form-group">

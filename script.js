@@ -172,6 +172,36 @@ class LearningDashboard {
         if (showDurationCheckbox) {
             showDurationCheckbox.checked = settings.show_card_duration;
         }
+
+        // Set date filter type
+        const dateFilterRadios = document.querySelectorAll('input[name="dateFilterType"]');
+        dateFilterRadios.forEach(radio => {
+            radio.checked = radio.value === (settings.date_filter_type || 'assigned_date');
+        });
+
+        // Set date sort order
+        const dateSortRadios = document.querySelectorAll('input[name="dateSortOrder"]');
+        dateSortRadios.forEach(radio => {
+            radio.checked = radio.value === (settings.date_sort_order || 'descending');
+        });
+
+        // Show/hide date filter and sort sections based on column display mode
+        const dateFilterSection = document.getElementById('dateFilterSection');
+        const dateSortSection = document.getElementById('dateSortSection');
+        if (dateFilterSection) {
+            if (settings.column_display_mode === 'day_category') {
+                dateFilterSection.style.display = 'block';
+            } else {
+                dateFilterSection.style.display = 'none';
+            }
+        }
+        if (dateSortSection) {
+            if (settings.column_display_mode === 'day_category') {
+                dateSortSection.style.display = 'block';
+            } else {
+                dateSortSection.style.display = 'none';
+            }
+        }
     }
 
     async loadDashboardSettings() {
@@ -226,7 +256,9 @@ class LearningDashboard {
                 const columnSettings = {
                     column_display_mode: formData.get('columnDisplayMode'),
                     count_display_type: formData.get('countDisplayType'),
-                    show_card_duration: document.getElementById('showCardDuration').checked
+                    show_card_duration: document.getElementById('showCardDuration').checked,
+                    date_filter_type: formData.get('dateFilterType') || 'assigned_date',
+                    date_sort_order: formData.get('dateSortOrder') || 'descending'
                 };
 
                 await supabaseService.updateColumnSettings(columnId, columnSettings);
@@ -655,9 +687,8 @@ class LearningDashboard {
         const seconds = Math.floor(milliseconds / 1000);
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
         
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
 
     formatDate(dateString) {
@@ -1260,6 +1291,28 @@ class LearningDashboard {
                 }
             });
         }
+
+        // Column display mode change handler
+        document.addEventListener('change', (e) => {
+            if (e.target.name === 'columnDisplayMode') {
+                const dateFilterSection = document.getElementById('dateFilterSection');
+                const dateSortSection = document.getElementById('dateSortSection');
+                if (dateFilterSection) {
+                    if (e.target.value === 'day_category') {
+                        dateFilterSection.style.display = 'block';
+                    } else {
+                        dateFilterSection.style.display = 'none';
+                    }
+                }
+                if (dateSortSection) {
+                    if (e.target.value === 'day_category') {
+                        dateSortSection.style.display = 'block';
+                    } else {
+                        dateSortSection.style.display = 'none';
+                    }
+                }
+            }
+        });
         
         // Logout button
         if (logoutBtn) {
@@ -1484,26 +1537,38 @@ class LearningDashboard {
             case 'day_category':
                 // Group by date first, then by category within each date
                 const cardsByDate = {};
+                const dateFilterType = columnSettings.date_filter_type || 'assigned_date';
                 
                 columnCards.forEach(card => {
-                    let completedAt;
+                    let dateToUse;
                     
-                    // Try to get a valid date from completedAt or createdAt
-                    if (card.completedAt) {
-                        completedAt = new Date(card.completedAt);
-                    } else if (card.createdAt) {
-                        completedAt = new Date(card.createdAt);
+                    // Use the selected date filter type
+                    if (dateFilterType === 'completed_date') {
+                        // Use completed date (completedAt or createdAt as fallback)
+                        if (card.completedAt) {
+                            dateToUse = new Date(card.completedAt);
+                        } else if (card.createdAt) {
+                            dateToUse = new Date(card.createdAt);
+                        } else {
+                            dateToUse = new Date();
+                        }
                     } else {
-                        // Fallback to current date if no valid date is found
-                        completedAt = new Date();
+                        // Use assigned date (assignedDate or createdAt as fallback)
+                        if (card.assignedDate) {
+                            dateToUse = new Date(card.assignedDate);
+                        } else if (card.createdAt) {
+                            dateToUse = new Date(card.createdAt);
+                        } else {
+                            dateToUse = new Date();
+                        }
                     }
                     
                     // Check if the date is valid
-                    if (isNaN(completedAt.getTime())) {
-                        completedAt = new Date(); // Fallback to current date
+                    if (isNaN(dateToUse.getTime())) {
+                        dateToUse = new Date(); // Fallback to current date
                     }
                     
-                    const displayDate = completedAt.toLocaleDateString('en-US', { 
+                    const displayDate = dateToUse.toLocaleDateString('en-US', { 
                         day: 'numeric', 
                         month: 'short', 
                         year: 'numeric' 
@@ -1515,9 +1580,14 @@ class LearningDashboard {
                     cardsByDate[displayDate].push(card);
                 });
                 
-                // Sort dates (most recent first)
+                // Sort dates based on user preference
+                const dateSortOrder = columnSettings.date_sort_order || 'descending';
                 const sortedDates = Object.keys(cardsByDate).sort((a, b) => {
-                    return new Date(b) - new Date(a);
+                    if (dateSortOrder === 'ascending') {
+                        return new Date(a) - new Date(b); // oldest first
+                    } else {
+                        return new Date(b) - new Date(a); // most recent first (default)
+                    }
                 });
                 
                 // Render grouped cards
