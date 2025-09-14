@@ -24,7 +24,9 @@ class LearningDashboard {
             
             this.isLoading = true;
             await this.loadData();
+            await this.loadDashboardSettings();
             this.setupEventListeners();
+            this.updateUserAvatar();
             await this.renderDashboard();
             await this.updateCategoryOptions();
         } catch (error) {
@@ -64,6 +66,206 @@ class LearningDashboard {
         localStorage.removeItem('isAuthenticated');
         localStorage.removeItem('currentUser');
         window.location.href = 'login.html';
+    }
+
+    updateUserAvatar() {
+        const currentUserEmail = localStorage.getItem('currentUser');
+        const userInitialsElement = document.getElementById('user-initials');
+        
+        if (currentUserEmail && userInitialsElement) {
+            // Extract initials from email address
+            const emailParts = currentUserEmail.split('@')[0]; // Get part before @
+            const nameParts = emailParts.split('.'); // Split by dots
+            
+            let initials = '';
+            if (nameParts.length >= 2) {
+                // If we have multiple parts (like firstname.lastname), use first letter of each
+                initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
+            } else {
+                // If single part, use first two letters
+                initials = emailParts.substring(0, 2).toUpperCase();
+            }
+            
+            userInitialsElement.textContent = initials;
+        }
+    }
+
+    // Settings Modal Methods
+    async openSettingsModal(columnId = null) {
+        const settingsModal = document.getElementById('settingsModal');
+        if (!settingsModal) return;
+
+        try {
+            // Load dashboard settings
+            await this.loadDashboardSettings();
+            
+            // Populate column selector
+            await this.populateColumnSelector();
+            
+            // If columnId is provided, select it automatically
+            if (columnId) {
+                const columnSelect = document.getElementById('columnSelect');
+                const currentColumnNameSpan = document.getElementById('currentColumnName');
+                
+                if (columnSelect) {
+                    columnSelect.value = columnId;
+                    
+                    // Find and display the column name
+                    const column = this.columns.find(col => col.id === columnId);
+                    if (column && currentColumnNameSpan) {
+                        currentColumnNameSpan.textContent = column.name;
+                    }
+                    
+                    // Load settings for the selected column
+                    const settings = await supabaseService.getColumnSettings(columnId);
+                    this.populateSettingsForm(settings);
+                }
+            }
+            
+            settingsModal.style.display = 'block';
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            alert('Failed to load settings. Please try again.');
+        }
+    }
+
+    async populateColumnSelector() {
+        const columnSelect = document.getElementById('columnSelect');
+        if (!columnSelect) return;
+
+        // Clear existing options except the first one
+        columnSelect.innerHTML = '<option value="">Select a column...</option>';
+
+        // Add columns as options
+        this.columns.forEach(column => {
+            const option = document.createElement('option');
+            option.value = column.id;
+            option.textContent = column.title;
+            columnSelect.appendChild(option);
+        });
+
+        // Event listener removed since column is pre-selected when modal opens
+    }
+
+    closeSettingsModal() {
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.style.display = 'none';
+        }
+    }
+
+    populateSettingsForm(settings) {
+        // Set column display mode
+        const columnModeRadios = document.querySelectorAll('input[name="columnDisplayMode"]');
+        columnModeRadios.forEach(radio => {
+            radio.checked = radio.value === settings.column_display_mode;
+        });
+
+        // Set count display type
+        const countTypeRadios = document.querySelectorAll('input[name="countDisplayType"]');
+        countTypeRadios.forEach(radio => {
+            radio.checked = radio.value === settings.count_display_type;
+        });
+
+        // Set card duration visibility
+        const showDurationCheckbox = document.getElementById('showCardDuration');
+        if (showDurationCheckbox) {
+            showDurationCheckbox.checked = settings.show_card_duration;
+        }
+    }
+
+    async loadDashboardSettings() {
+        try {
+            const dashboardSettings = await supabaseService.getDashboardSettings();
+            
+            // Set dashboard section display mode
+            const sectionModeRadios = document.querySelectorAll('input[name="sectionDisplayMode"]');
+            sectionModeRadios.forEach(radio => {
+                radio.checked = radio.value === dashboardSettings.section_display_mode;
+            });
+            
+            // Store dashboard settings locally
+            this.dashboardSettings = dashboardSettings;
+        } catch (error) {
+            console.error('Error loading dashboard settings:', error);
+            // Set default dashboard settings
+            this.dashboardSettings = {
+                section_display_mode: 'cards_only'
+            };
+            const defaultRadio = document.querySelector('input[name="sectionDisplayMode"][value="cards_only"]');
+            if (defaultRadio) defaultRadio.checked = true;
+        }
+    }
+
+    // Helper method to format section headers based on dashboard settings
+    formatSectionHeader(cardCount, totalTimeFormatted) {
+        const displayMode = this.dashboardSettings?.section_display_mode || 'cards_only';
+        const cardText = `${cardCount} Card${cardCount !== 1 ? 's' : ''}`;
+        
+        if (displayMode === 'cards_and_duration') {
+            return `${cardText} • ${totalTimeFormatted}`;
+        } else {
+            return cardText;
+        }
+    }
+
+    async saveSettings() {
+        try {
+            const formData = new FormData(document.getElementById('settingsForm'));
+            
+            // Save dashboard settings
+            const dashboardSettings = {
+                section_display_mode: formData.get('sectionDisplayMode') || 'cards_only'
+            };
+            await supabaseService.updateDashboardSettings(dashboardSettings);
+            this.dashboardSettings = dashboardSettings;
+            
+            // Save column settings if a column is selected
+            const columnId = formData.get('columnId');
+            if (columnId) {
+                const columnSettings = {
+                    column_display_mode: formData.get('columnDisplayMode'),
+                    count_display_type: formData.get('countDisplayType'),
+                    show_card_duration: document.getElementById('showCardDuration').checked
+                };
+
+                await supabaseService.updateColumnSettings(columnId, columnSettings);
+                
+                // Update local column settings cache
+                if (!this.columnSettings) {
+                    this.columnSettings = {};
+                }
+                this.columnSettings[columnId] = columnSettings;
+            }
+            
+            // Re-render dashboard with new settings
+            await this.renderDashboard();
+            
+            this.closeSettingsModal();
+            
+            // Show success message
+            this.showNotification('Settings saved successfully!', 'success');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            this.showNotification('Failed to save settings. Please try again.', 'error');
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        
+        // Add to page
+        document.body.appendChild(notification);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
     }
 
     // Data Management
@@ -119,12 +321,31 @@ class LearningDashboard {
             if (this.columns.length === 0) {
                 await this.createDefaultColumns();
             }
+            // Load column settings for all columns
+            try {
+                const columnSettingsArray = await supabaseService.getAllColumnSettings();
+                // Convert array to object keyed by column_id for easier access
+                this.columnSettings = {};
+                columnSettingsArray.forEach(setting => {
+                    this.columnSettings[setting.column_id] = setting;
+                });
+            } catch (error) {
+                console.error('Error loading column settings:', error);
+                // Use empty object if loading fails
+                this.columnSettings = {};
+                
+                // Show helpful message if table doesn't exist
+                if (error.code === 'PGRST205' && error.message.includes('column_settings')) {
+                    this.showNotification('Database setup required: Please execute add-column-settings-table.sql in your Supabase dashboard to enable column-specific settings.', 'warning');
+                }
+            }
         } catch (error) {
             console.error('Error loading data:', error);
             // Fallback to empty arrays
             this.columns = [];
             this.cards = [];
             this.categories = [];
+            this.columnSettings = {};
         }
     }
 
@@ -981,8 +1202,66 @@ class LearningDashboard {
             });
         }
         
-        // Logout button
+        // User Avatar Dropdown
+        const userAvatar = document.getElementById('user-avatar');
+        const userDropdown = document.getElementById('user-dropdown');
+        const settingsBtn = document.getElementById('settings-btn');
         const logoutBtn = document.getElementById('logout-btn');
+        
+        if (userAvatar && userDropdown) {
+            // Toggle dropdown when avatar is clicked
+            userAvatar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('show');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', () => {
+                userDropdown.classList.remove('show');
+            });
+            
+            // Prevent dropdown from closing when clicking inside it
+            userDropdown.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+        
+        // Settings button
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                this.openSettingsModal();
+                userDropdown.classList.remove('show');
+            });
+        }
+
+        // Settings modal event listeners
+        const settingsModal = document.getElementById('settingsModal');
+        const settingsForm = document.getElementById('settingsForm');
+        const settingsCloseBtn = settingsModal?.querySelector('.close');
+
+        if (settingsCloseBtn) {
+            settingsCloseBtn.addEventListener('click', () => {
+                this.closeSettingsModal();
+            });
+        }
+
+        if (settingsForm) {
+            settingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveSettings();
+            });
+        }
+
+        // Close settings modal when clicking outside
+        if (settingsModal) {
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    this.closeSettingsModal();
+                }
+            });
+        }
+        
+        // Logout button
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => {
                 this.logout();
@@ -1099,11 +1378,24 @@ class LearningDashboard {
             });
         }
         
-        // Calculate total minutes based on filtered cards
-        const totalMinutes = columnCards.reduce((sum, card) => sum + (card.duration || 0), 0);
-        const totalHours = Math.floor(totalMinutes / 60);
-        const totalRemainingMinutes = totalMinutes % 60;
-        const totalDisplay = totalHours > 0 ? `${totalHours}h ${totalRemainingMinutes}m` : `${totalMinutes}m`;
+        // Calculate display based on column settings
+        const columnSettings = this.columnSettings?.[column.id] || {
+            count_display_type: 'duration',
+            column_display_mode: 'none',
+            show_card_duration: true
+        };
+        const countDisplayType = columnSettings.count_display_type;
+        let totalDisplay;
+        
+        if (countDisplayType === 'cards') {
+            totalDisplay = `${columnCards.length} card${columnCards.length !== 1 ? 's' : ''}`;
+        } else {
+            // Default to duration display
+            const totalMinutes = columnCards.reduce((sum, card) => sum + (card.duration || 0), 0);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const totalRemainingMinutes = totalMinutes % 60;
+            totalDisplay = totalHours > 0 ? `${totalHours}h ${totalRemainingMinutes}m` : `${totalMinutes}m`;
+        }
         
         // Add filter indicator if filters are active
         const hasActiveFilter = activeFilters && activeFilters.length > 0;
@@ -1114,14 +1406,14 @@ class LearningDashboard {
         columnDiv.dataset.columnId = column.id;
         
         columnDiv.innerHTML = `
-            <div class="column-header" draggable="true">
+            <div class="column-header" draggable="true" onclick="dashboard.openSettingsModal('${column.id}')" style="cursor: pointer;">
                 <div>
                     <h3 class="column-title">${column.name}${filterIndicator}</h3>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <span class="column-count">${totalDisplay}</span>
                     <div class="column-actions">
-                        <button onclick="dashboard.openColumnFilter('${column.id}')" title="Filter Categories" class="filter-btn">
+                        <button onclick="event.stopPropagation(); dashboard.openColumnFilter('${column.id}')" title="Filter Categories" class="filter-btn">
                             <i class="fas fa-filter"></i>
                         </button>
                     </div>
@@ -1136,53 +1428,176 @@ class LearningDashboard {
     }
 
     renderCardsForColumn(column, columnCards) {
+        // Use column settings to determine display mode
+        const columnSettings = this.columnSettings?.[column.id] || {
+            count_display_type: 'duration',
+            column_display_mode: 'none',
+            show_card_duration: true
+        };
+        const displayMode = columnSettings.column_display_mode;
+        
+        switch (displayMode) {
+            case 'none':
+                // Show cards without any sections
+                return columnCards.map(card => this.createCardHTML(card, column.id)).join('');
+                
+            case 'category':
+                // Group by category only
+                const cardsByCategory = {};
+                
+                columnCards.forEach(card => {
+                    const category = card.category || 'uncategorized';
+                    if (!cardsByCategory[category]) {
+                        cardsByCategory[category] = [];
+                    }
+                    cardsByCategory[category].push(card);
+                });
+                
+                // Sort categories alphabetically
+                const sortedCategories = Object.keys(cardsByCategory).sort();
+                
+                // Render grouped cards by category
+                return sortedCategories.map(category => {
+                    const categoryCards = cardsByCategory[category];
+                    const categoryId = `${column.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '-')}-category-${category.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+                    const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0';
+                    const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    
+                    // Calculate total time for this category
+                    const categoryTimeMs = categoryCards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+                    const categoryTimeFormatted = this.formatTime(categoryTimeMs);
+                    
+                    return `
+                        <div class="category-subsection">
+                            <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
+                                <h5 class="category-title">${categoryDisplay} - ${this.formatSectionHeader(categoryCards.length, categoryTimeFormatted)}</h5>
+                                <i class="fas fa-chevron-down category-toggle-icon"></i>
+                            </div>
+                            <div class="category-cards" id="${categoryId}" style="display: none;">
+                                ${categoryCards.map(card => this.createCardHTML(card, column.id)).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            case 'day_category':
+                // Group by date first, then by category within each date
+                const cardsByDate = {};
+                
+                columnCards.forEach(card => {
+                    let completedAt;
+                    
+                    // Try to get a valid date from completedAt or createdAt
+                    if (card.completedAt) {
+                        completedAt = new Date(card.completedAt);
+                    } else if (card.createdAt) {
+                        completedAt = new Date(card.createdAt);
+                    } else {
+                        // Fallback to current date if no valid date is found
+                        completedAt = new Date();
+                    }
+                    
+                    // Check if the date is valid
+                    if (isNaN(completedAt.getTime())) {
+                        completedAt = new Date(); // Fallback to current date
+                    }
+                    
+                    const displayDate = completedAt.toLocaleDateString('en-US', { 
+                        day: 'numeric', 
+                        month: 'short', 
+                        year: 'numeric' 
+                    });
+                    
+                    if (!cardsByDate[displayDate]) {
+                        cardsByDate[displayDate] = [];
+                    }
+                    cardsByDate[displayDate].push(card);
+                });
+                
+                // Sort dates (most recent first)
+                const sortedDates = Object.keys(cardsByDate).sort((a, b) => {
+                    return new Date(b) - new Date(a);
+                });
+                
+                // Render grouped cards
+                return sortedDates.map(dateLabel => {
+                    const cards = cardsByDate[dateLabel];
+                    const sectionId = `date-section-${dateLabel.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    
+                    // Calculate total planned duration for this date
+                    const totalTimeMs = cards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+                    const totalTimeFormatted = this.formatTime(totalTimeMs);
+                    
+                    // Group cards by category within this date
+                    const cardsByCategory = {};
+                    cards.forEach(card => {
+                        const category = card.category || 'uncategorized';
+                        if (!cardsByCategory[category]) {
+                            cardsByCategory[category] = [];
+                        }
+                        cardsByCategory[category].push(card);
+                    });
+                    
+                    // Sort categories alphabetically
+                    const sortedCategories = Object.keys(cardsByCategory).sort();
+                    
+                    const categorySubsections = sortedCategories.map(category => {
+                        const categoryCards = cardsByCategory[category];
+                        const categoryId = `category-${sectionId}-${category.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                        const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
+                        const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0';
+                        const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        
+                        // Calculate total time for this category
+                        const categoryTimeMs = categoryCards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
+                        const categoryTimeFormatted = this.formatTime(categoryTimeMs);
+                        
+                        return `
+                            <div class="category-subsection">
+                                <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
+                                    <h5 class="category-title">${categoryDisplay} - ${this.formatSectionHeader(categoryCards.length, categoryTimeFormatted)}</h5>
+                                    <i class="fas fa-chevron-down category-toggle-icon"></i>
+                                </div>
+                                <div class="category-cards" id="${categoryId}" style="display: none;">
+                                    ${categoryCards.map(card => this.createCardHTML(card, column.id)).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    return `
+                        <div class="date-section">
+                            <div class="date-header" onclick="dashboard.toggleDateSection('${sectionId}')">
+                                <h4 class="date-title">${dateLabel} - ${this.formatSectionHeader(cards.length, totalTimeFormatted)}</h4>
+                                <i class="fas fa-chevron-down date-toggle-icon"></i>
+                            </div>
+                            <div class="date-cards" id="${sectionId}" style="display: none;">
+                                ${categorySubsections}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            default:
+                // Fallback to no sections
+                return columnCards.map(card => this.createCardHTML(card, column.id)).join('');
+        }
+    }
+
+    // Legacy method for backward compatibility - can be removed later
+    renderCardsForColumnLegacy(column, columnCards) {
         const isCompletedColumn = column.name === 'Done' || column.name === 'Completed';
         const isBacklogColumn = column.name === 'Backlog' || column.name === 'To Do';
         
         if (!isCompletedColumn && !isBacklogColumn) {
             // Regular column - render cards normally
-            return columnCards.map(card => this.createCardHTML(card)).join('');
+            return columnCards.map(card => this.createCardHTML(card, column.id)).join('');
         }
         
         if (isBacklogColumn) {
-            // Backlog column - group by category
-            const cardsByCategory = {};
-            
-            columnCards.forEach(card => {
-                const category = card.category || 'uncategorized';
-                if (!cardsByCategory[category]) {
-                    cardsByCategory[category] = [];
-                }
-                cardsByCategory[category].push(card);
-            });
-            
-            // Sort categories alphabetically
-            const sortedCategories = Object.keys(cardsByCategory).sort();
-            
-            // Render grouped cards by category
-            return sortedCategories.map(category => {
-                const categoryCards = cardsByCategory[category];
-                const categoryId = `${column.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '-')}-category-${category.replace(/[^a-zA-Z0-9]/g, '-')}`;
-                const categoryObj = this.categories.find(cat => cat.name.toLowerCase() === category.toLowerCase());
-                const categoryColor = categoryObj ? categoryObj.color : '#e2e8f0';
-                const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                // Calculate total time for this category
-                const categoryTimeMs = categoryCards.reduce((total, card) => total + ((card.duration || 0) * 60000), 0);
-                const categoryTimeFormatted = this.formatTime(categoryTimeMs);
-                
-                return `
-                    <div class="category-subsection">
-                        <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
-                            <h5 class="category-title">${categoryDisplay} - ${categoryCards.length} Card${categoryCards.length !== 1 ? 's' : ''} (${categoryTimeFormatted})</h5>
-                            <i class="fas fa-chevron-down category-toggle-icon"></i>
-                        </div>
-                        <div class="category-cards" id="${categoryId}" style="display: none;">
-                            ${categoryCards.map(card => this.createCardHTML(card)).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            // Use category display mode
+            return this.renderCardsForColumn(column, columnCards);
         }
         
         // Completed column - group by completion date
@@ -1264,11 +1679,11 @@ class LearningDashboard {
                 return `
                     <div class="category-subsection">
                         <div class="category-header" onclick="dashboard.toggleCategorySection('${categoryId}')" style="border-left: 3px solid ${categoryColor};">
-                            <h5 class="category-title">${categoryDisplay} - ${categoryCards.length} Card${categoryCards.length !== 1 ? 's' : ''} (${categoryTimeFormatted})</h5>
+                            <h5 class="category-title">${categoryDisplay} - ${this.formatSectionHeader(categoryCards.length, categoryTimeFormatted)}</h5>
                             <i class="fas fa-chevron-down category-toggle-icon"></i>
                         </div>
                         <div class="category-cards" id="${categoryId}" style="display: none;">
-                            ${categoryCards.map(card => this.createCardHTML(card)).join('')}
+                            ${categoryCards.map(card => this.createCardHTML(card, column.id)).join('')}
                         </div>
                     </div>
                 `;
@@ -1277,7 +1692,7 @@ class LearningDashboard {
             return `
                 <div class="date-section">
                     <div class="date-header" onclick="dashboard.toggleDateSection('${sectionId}')">
-                        <h4 class="date-title">${dateLabel} - ${cards.length} Card${cards.length !== 1 ? 's' : ''} (${totalTimeFormatted})</h4>
+                        <h4 class="date-title">${dateLabel} - ${this.formatSectionHeader(cards.length, totalTimeFormatted)}</h4>
                         <i class="fas fa-chevron-down date-toggle-icon"></i>
                     </div>
                     <div class="date-cards" id="${sectionId}" style="display: none;">
@@ -1365,7 +1780,7 @@ class LearningDashboard {
         modal.addEventListener('click', handleModalClick);
     }
 
-    createCardHTML(card) {
+    createCardHTML(card, columnId = null) {
         const timeSpentFormatted = this.formatTime(card.timeSpent);
         const isTimerRunning = this.currentTimer && this.currentTimer.cardId === card.id;
         
@@ -1391,7 +1806,11 @@ class LearningDashboard {
         
         const categoryDisplay = category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
         
-        // Format duration
+        // Format duration based on column settings
+        const columnSettings = columnId && this.columnSettings?.[columnId] || {
+            show_card_duration: true
+        };
+        const showCardDuration = columnSettings.show_card_duration !== false; // Default to true
         const durationHours = card.durationHours || 0;
         const durationMinutes = card.durationMinutes || 0;
         const durationDisplay = durationHours > 0 ? 
@@ -1408,7 +1827,7 @@ class LearningDashboard {
                 </div>
                 ${card.title ? `<p class="card-description">${card.title}</p>` : ''}
                 <div class="card-meta">
-                    <span class="card-category category-${category}">${durationDisplay}</span>
+                    ${showCardDuration ? `<span class="card-category category-${category}">${durationDisplay}</span>` : ''}
                     <span>${this.formatDate(assignedDate)}</span>
                 </div>
                 ${card.timeSpent > 0 || isTimerRunning ? `

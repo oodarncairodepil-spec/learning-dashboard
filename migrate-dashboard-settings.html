@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Migration - Dashboard Settings</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+</head>
+<body>
+    <h1>Database Migration - Dashboard Settings</h1>
+    <button id="migrateBtn">Add Dashboard Settings Column</button>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('migrateBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Running migration...';
+            
+            try {
+                // Initialize Supabase
+                const supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.serviceRoleKey);
+                
+                // Add the column using RPC or direct SQL
+                const { data, error } = await supabase.rpc('exec_sql', {
+                    sql: `
+                        ALTER TABLE user_settings 
+                        ADD COLUMN IF NOT EXISTS section_display_mode VARCHAR(20) DEFAULT 'cards_only' 
+                        CHECK (section_display_mode IN ('cards_only', 'cards_and_duration'));
+                        
+                        UPDATE user_settings 
+                        SET section_display_mode = 'cards_only' 
+                        WHERE section_display_mode IS NULL;
+                    `
+                });
+                
+                if (error) {
+                    // Try alternative approach using individual queries
+                    console.log('RPC failed, trying direct approach:', error);
+                    
+                    // First, try to add the column
+                    const { error: alterError } = await supabase
+                        .from('user_settings')
+                        .select('section_display_mode')
+                        .limit(1);
+                    
+                    if (alterError && alterError.code === 'PGRST116') {
+                        resultDiv.innerHTML = `
+                            <p style="color: red;">Migration needed but cannot be executed directly from browser.</p>
+                            <p>Please run this SQL in your Supabase dashboard:</p>
+                            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS section_display_mode VARCHAR(20) DEFAULT 'cards_only' 
+CHECK (section_display_mode IN ('cards_only', 'cards_and_duration'));
+
+UPDATE user_settings 
+SET section_display_mode = 'cards_only' 
+WHERE section_display_mode IS NULL;
+                            </pre>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = '<p style="color: green;">Column already exists or migration completed!</p>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<p style="color: green;">Migration completed successfully!</p>';
+                }
+                
+            } catch (err) {
+                console.error('Migration error:', err);
+                resultDiv.innerHTML = `
+                    <p style="color: red;">Error: ${err.message}</p>
+                    <p>Please run this SQL in your Supabase dashboard:</p>
+                    <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS section_display_mode VARCHAR(20) DEFAULT 'cards_only' 
+CHECK (section_display_mode IN ('cards_only', 'cards_and_duration'));
+
+UPDATE user_settings 
+SET section_display_mode = 'cards_only' 
+WHERE section_display_mode IS NULL;
+                    </pre>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
